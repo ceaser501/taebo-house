@@ -162,9 +162,9 @@ const PI2=Math.PI*2;
 
 /* ---------- 난이도 (봇 시뮬레이션으로 맞춘 값) ---------- */
 const TUNE={
-  hero:{par:.8,m:1.04,e0:.5,eSt:.14,heroHp:420,unitHp:120,heroAtk:3.2,unitAtk:1,bolt:22,fire:34,rain:40,g0:18,gD:3.5,gW:10,oW:1.2,oD:.4,gap:.35,barrel:150,
+  hero:{par:.8,m:1.04,e0:.3,eSt:.07,heroHp:420,unitHp:120,heroAtk:3.2,unitAtk:1,bolt:22,fire:34,rain:40,g0:18,gD:3.5,gW:10,oW:1.2,oD:.4,gap:.35,barrel:150,
     gob:{hp:190,spd:2,atk:14,r:.3},orc:{hp:880,spd:1.4,atk:45,r:.45},boss:{hp:17500,spd:.85,atk:160,r:1.2}},
-  run:{wpnT:.9,shootCap:8,bossSpd:2,par:.86,gateSc:.07,t0:3.6,tSt:.28,tMax:7.7,f0:.35,fSt:.02,fMax:.7,a0:.3,aSt:.025,aMax:.75,b0:9,bSt:.5,bMax:22,drain:.08,barrelAmt:.15,barrelT:.5,kingAmt:.3,kingT:1.1},
+  run:{e0:.5,eSt:.05,wpnT:.9,shootCap:8,bossSpd:2,par:.8,gateSc:.07,t0:3.6,tSt:.28,tMax:7.7,f0:.35,fSt:.02,fMax:.7,a0:.3,aSt:.025,aMax:.75,b0:9,bSt:.5,bMax:22,drain:.08,barrelAmt:.15,barrelT:.5,kingAmt:.3,kingT:1.1},
   def:{par:.8,m:1.04,castle:10,start:15,startD:5,heroMul:1.3,raven:3,blaze:2.2,tower:34,towerGrow:1.01,g0:8,gW:3.5,gD:1,oW:1.2,oD:.35,gap:.5,
     gob:{hp:95,spd:2,dmg:1,coins:1,r:.26},orc:{hp:400,spd:1.4,dmg:2,coins:3,r:.36},ogre:{hp:3800,spd:.9,dmg:6,coins:12,r:.75}}
 };
@@ -179,7 +179,7 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 const RATE={farm:lv=>Math.round(300*lv*Math.pow(1.1,lv-1)),mine:lv=>Math.round(240*lv*Math.pow(1.1,lv-1)),goldmine:lv=>Math.round(120*lv*Math.pow(1.1,lv-1))};
 const PROD={farm:'food',mine:'iron',goldmine:'gold'};
 const ST={
-  men:()=>S.b.barracks,
+  men:(lv=S.b.barracks)=>4+lv,
   dmg:(lv=S.b.armory)=>10*(1+.15*(lv-1)),
   rate:(lv=S.b.range)=>1+.08*(lv-1),
   cap:(lv=S.b.depot)=>4+2*(lv-1)
@@ -189,7 +189,7 @@ const BLD=[
   {id:'farm',nm:'농장',desc:lv=>`식량 ${fmt(RATE.farm(lv))} / 시간`,cost:lv=>({iron:pw(150,lv),gold:pw(50,lv)})},
   {id:'mine',nm:'철광산',desc:lv=>`철 ${fmt(RATE.mine(lv))} / 시간`,cost:lv=>({food:pw(180,lv),gold:pw(50,lv)})},
   {id:'goldmine',nm:'금광',desc:lv=>`금 ${fmt(RATE.goldmine(lv))} / 시간`,cost:lv=>({food:pw(200,lv),iron:pw(200,lv)})},
-  {id:'barracks',nm:'병영',desc:lv=>`돌격전 시작 병사 ${lv}명`,cost:lv=>({food:pw(250,lv),iron:pw(150,lv)})},
+  {id:'barracks',nm:'병영',desc:lv=>`돌격전 시작 병사 ${ST.men(lv)}명`,cost:lv=>({food:pw(250,lv),iron:pw(150,lv)})},
   {id:'armory',nm:'대장간',desc:lv=>`공격력 ${ST.dmg(lv).toFixed(1)}`,cost:lv=>({iron:pw(300,lv),gold:pw(100,lv)})},
   {id:'range',nm:'궁술장',desc:lv=>`공격 속도 ×${ST.rate(lv).toFixed(2)}`,cost:lv=>({food:pw(250,lv),gold:pw(120,lv)})},
   {id:'depot',nm:'창고',desc:lv=>`생산품 ${ST.cap(lv)}시간치 보관`,cost:lv=>({food:pw(200,lv),iron:pw(200,lv)})}
@@ -586,9 +586,10 @@ function runLayout(){CAMD=4.5;F=Math.min(VW*.62,VH*.5);HY=VH*.06;CAMH=(VH*.8-HY)
 function genRun(st,att=0){
   // 적 규모는 "이 스테이지에서 게이트를 잘 골랐을 때 예상 병사 수"와 "평균적인 업그레이드 수준"에 맞춰 정한다.
   const T=TUNE.run,R=rng(st*7919+13+att*104729),sc=1+T.gateSc*(st-1);
-  const parLv=Math.pow(st,T.par),dPar=ST.dmg(parLv)*ST.rate(parLv);
+  // 초반 완화: 1스테이지 55% → 8스테이지부터 100%
+  const ease=Math.min(1,T.e0+T.eSt*(st-1)),parLv=Math.pow(st,T.par),dPar=ST.dmg(parLv)*ST.rate(parLv)*ease;
   const tW=Math.min(T.t0+T.tSt*(st-1),T.tMax),f=Math.min(T.f0+T.fSt*(st-1),T.fMax),hPer=tW*dPar/f;
-  const L=Math.min(160+st*7,340),ents=[];let z=14,k=0,pid=0,Ng=Math.floor(parLv);
+  const L=Math.min(160+st*7,340),ents=[];let z=14,k=0,pid=0,Ng=ST.men(Math.floor(parLv));
   const seq=['g','z','wpn','barrel','row','z','g','wpn','barrel','z','row','g','z'];
   const good=()=>{const r=R();return r<.6?{op:'+',v:Math.round((5+R()*11)*sc)}:r<.88?{op:'x',v:2}:{op:'x',v:3}};
   const bad=()=>R()<.72?{op:'+',v:-Math.round((4+R()*9)*sc)}:{op:'/',v:2};
@@ -601,7 +602,7 @@ function genRun(st,att=0){
   };
   while(z<L){
     const t=seq[k%seq.length];
-    if(t==='g'){let a=good(),b=R()<.6?bad():good();if(st===1&&pid===0){a={op:'+',v:10};b={op:'x',v:2}}if(R()<.5)[a,b]=[b,a];
+    if(t==='g'){let a=good(),b=R()<.6?bad():good();if(pid===0){a={op:'+',v:Math.round(8*sc)};b={op:'x',v:2}}if(R()<.5)[a,b]=[b,a];
       {const sb=g=>g.op==='+'?{...g,v:g.v+Math.round(T.shootCap*sc*.6)}:g;Ng=Math.max(ap(Ng,sb(a)),ap(Ng,sb(b)))}
       const cap=Math.round(T.shootCap*sc);ents.push({t:'g',z,x0:-W,x1:0,...a,pid,acc:0,cap:a.v+cap},{t:'g',z,x0:0,x1:W,...b,pid,acc:0,cap:b.v+cap});pid++;z+=20}
     else if(t==='z'){wave(z,f);z+=24}
@@ -625,7 +626,7 @@ function genRun(st,att=0){
   const army=Math.max(6,Math.round(Ng*Math.min(T.a0+T.aSt*(st-1),T.aMax))),rows=Math.ceil(army/60);
   let left=army;for(let r=0;r<Math.max(2,rows*2);r++)for(let i=0;i<5&&left>0;i++){const n=Math.min(left,Math.ceil(army/(Math.max(2,rows*2)*5)));left-=n;mob(-W+.7+i*(2*W-1.4)/4,z+4+r*1.1,n);ents[ents.length-1].home=.7}
   const Tb=Math.min(T.b0+T.bSt*(st-1),T.bMax),bh=Ng*dPar*Tb;
-  const boss={t:'b',x:0,z:z+4+Math.max(2,rows*2)*1.1+8,hp:bh,mhp:bh,spd:T.bossSpd,dps:Ng*T.drain,sz:3.2};
+  const boss={t:'b',x:0,z:z+4+Math.max(2,rows*2)*1.1+8,hp:bh,mhp:bh,spd:T.bossSpd,dps:Ng*T.drain*ease,sz:3.2};
   ents.push(boss);
   return{ents,boss,L,M:hPer/34,Ng};
 }
@@ -728,7 +729,7 @@ function runUpdate(dt,frozen){
         if(B.sqX>=e.x0&&B.sqX<e.x1){
           const before=B.N;
           if(e.op==='+')B.N+=e.v;else if(e.op==='x')B.N*=e.v;else B.N=Math.ceil(B.N/e.v);
-          B.N=clamp(Math.round(B.N),0,MAXN);B.peak=Math.max(B.peak,B.N);
+          B.N=clamp(Math.round(B.N),1,MAXN);B.peak=Math.max(B.peak,B.N);
           const d=B.N-before;
           if(!e.small||Math.random()<.35)addFloat(B.sqX,B.sqZ+1,(d>=0?'+':'')+d,d>=0?'#9fd3ff':'#ff8a80');
           burst(B.sqX,e.z,1,d>=0?(e.purple?'#a66bff':'#4a95ff'):'#ff5b4f',e.small?4:14);
@@ -996,7 +997,7 @@ function startDef(){
   accrue();save();
   const d=S.dstage,hid=S.hero,T=TUNE.def;
   const par=Math.pow(d,T.par);
-  B={mode:'def',st:d,M:ST.dmg(par)*ST.rate(par)/10*Math.pow(T.m,d-1),coins:Math.min(T.start+T.startD*(d-1),70),castle:T.castle,castleMax:T.castle,hero:{x:MAP.castle[0],y:MAP.castle[1]+3.6,face:1},
+  B={mode:'def',st:d,M:ST.dmg(par)*ST.rate(par)/10*Math.pow(T.m,d-1)*Math.min(1,.65+.05*(d-1)),coins:Math.min(T.start+T.startD*(d-1),70),castle:T.castle,castleMax:T.castle,hero:{x:MAP.castle[0],y:MAP.castle[1]+3.6,face:1},
      enemies:[],drops:[],towers:MAP.pads.map(p=>({x:p.x,y:p.y,cost:p.cost,lv:0,cd:0,ang:-Math.PI/2,hold:0,done:false})),
      shots:[],parts:[],floats:[],waves:defWaves(d),wave:-1,queue:[],qt:0,waveT:3,shake:0,t:0,fireCd:0,heroCd:1.5,
      hid,hlv:S.heroes[hid],joy:null,layout:defLayout,update:defUpdate,draw:defDraw,
@@ -1207,11 +1208,11 @@ function heroWaves(d){
 }
 function startHero(){
   accrue();save();
-  const d=S.hstage,T=TUNE.hero,par=Math.pow(d,T.par),M=ST.dmg(par)*ST.rate(par)/10*Math.pow(T.m,d-1)*Math.min(1,T.e0+T.eSt*(d-1));
+  const d=S.hstage,T=TUNE.hero,par=Math.pow(d,T.par),ease=Math.min(1,T.e0+T.eSt*(d-1)),M=ST.dmg(par)*ST.rate(par)/10*Math.pow(T.m,d-1)*ease,atkM=Math.pow(1.07,d-1)*Math.min(1,.5+.07*(d-1));
   const units=[],owned=Object.keys(S.heroes);
   owned.forEach((id,i)=>{const hp=T.heroHp*(1+.15*(S.heroes[id]-1))*Math.pow(T.m,0);units.push({hero:id,lv:S.heroes[id],hp,mhp:hp,ox:(i-(owned.length-1)/2)*1.0,oz:.45,cd:Math.random()*.5})});
-  for(let i=0;i<Math.min(14,2+S.b.barracks*2);i++)addEscort(units,i);
-  B={mode:'hero',st:d,M,units,ents:[],shots:[],pend:[],fx:[],parts:[],floats:[],sqZ:0,sqX:0,tx:0,t:0,shake:0,
+  for(let i=0;i<Math.min(16,4+S.b.barracks*2);i++)addEscort(units,i);
+  B={mode:'hero',st:d,M,atkM,units,ents:[],shots:[],pend:[],fx:[],parts:[],floats:[],sqZ:0,sqX:0,tx:0,t:0,shake:0,
      waves:heroWaves(d),wave:-1,queue:[],qt:0,waveT:2.5,cds:{},boss:null,
      layout:heroLayout,update:heroUpdate,draw:heroDraw,progress:()=>Math.max(0,B.wave)/B.waves.length,
      onDrag:(dx)=>{B.tx+=dx/(F/CAMD)*1.1}};
@@ -1291,7 +1292,7 @@ function heroUpdate(dt,frozen){
     }
     B.qt+=dt;
     while(B.queue.length&&B.qt>=T.gap){B.qt-=T.gap;const k=B.queue.shift(),s=T[k],hp=s.hp*B.M;
-      const e={t:'e',k,x:k==='boss'?0:(Math.random()*2-1)*(W-.5),z:29+Math.random()*3,hp,mhp:hp,spd:s.spd*(.85+Math.random()*.3),atk:s.atk*B.M,r:s.r,sz:k==='boss'?3.2:k==='orc'?1.5:1,ph:Math.random()*4,flash:0};
+      const e={t:'e',k,x:k==='boss'?0:(Math.random()*2-1)*(W-.5),z:29+Math.random()*3,hp,mhp:hp,spd:s.spd*(.85+Math.random()*.3),atk:s.atk*B.atkM,r:s.r,sz:k==='boss'?3.2:k==='orc'?1.5:1,ph:Math.random()*4,flash:0};
       B.ents.push(e);if(k==='boss'){B.boss=e;$('#hBossRow').hidden=false}}
     const alive=B.units.filter(u=>u.hp>0);
     // 적 이동·공격
