@@ -1,12 +1,6 @@
 <title>왕국 수비대</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/shaders/CopyShader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/postprocessing/EffectComposer.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/postprocessing/RenderPass.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/postprocessing/ShaderPass.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700;900&display=swap">
@@ -92,6 +86,7 @@ nav.tabs svg{width:20px;height:20px}
 .prog.hp i{background:var(--green)}
 .prog.boss{height:12px}
 .prog.boss i{background:var(--red)}
+#bView{pointer-events:auto;height:36px;padding:0 8px;border-radius:8px;background:#0008;border:1px solid #fff3;font-weight:900;font-size:12px}
 #bPause{pointer-events:auto;width:36px;height:36px;border-radius:8px;background:#0008;border:1px solid #fff3;font-weight:900}
 .bossrow{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-size:14px;color:var(--red);text-shadow:0 2px 0 #000}
 .buffs{display:flex;gap:6px;flex-wrap:wrap}
@@ -138,7 +133,7 @@ nav.tabs svg{width:20px;height:20px}
     <canvas id="gl" hidden></canvas>
     <canvas id="cv"></canvas>
     <div class="hud">
-      <div class="hud-top"><span class="hud-stage" id="hStage">STAGE 1</span><div class="prog" id="hProgBox"><i id="hProg"></i></div><button id="bPause" aria-label="일시정지">II</button></div>
+      <div class="hud-top"><span class="hud-stage" id="hStage">STAGE 1</span><div class="prog" id="hProgBox"><i id="hProg"></i></div><button id="bView" aria-label="2D/3D 전환">3D</button><button id="bPause" aria-label="일시정지">II</button></div>
       <div class="bossrow" id="hBossRow" hidden><span>보스</span><div class="prog boss"><i id="hBoss"></i></div></div>
       <div class="buffs" id="hBuffs"></div>
     </div>
@@ -497,16 +492,19 @@ function resize(){
 addEventListener('resize',()=>{if(B)resize()});
 function rng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function openBattle(label,hint){
-  $('#battle').hidden=false;$('#ovl').hidden=true;$('#hBossRow').hidden=true;$('#gl').hidden=true;
+  $('#battle').hidden=false;$('#ovl').hidden=true;$('#hBossRow').hidden=true;$('#gl').hidden=true;$('#bView').hidden=true;
   $('#hint').textContent=hint;$('#hint').style.opacity=1;$('#hint').style.bottom='';$('#skills').hidden=true;$('#hProg').style.background='';$('#hStage').textContent=label;
   resize();lastT=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);
 }
 function endBattle(){cancelAnimationFrame(raf);B=null;$('#battle').hidden=true;$('#skills').hidden=true;setTab(tab)}
 function loop(t){
   if(!B)return;
-  const dt=Math.min(.05,(t-lastT)/1000);lastT=t;
-  if(!B.paused&&!B.over)B.update(dt);
-  else if(B.over&&B.endT>0){B.endT-=dt;B.update(dt,true);if(B.endT<=0)result(B.win)}
+  let rem=Math.min(.25,Math.max(0,(t-lastT)/1000));lastT=t;
+  // 프레임이 떨어져도 게임 속도는 그대로 (작은 단위로 나눠 진행)
+  while(rem>1e-4&&B){const dt=Math.min(.05,rem);rem-=dt;
+    if(!B.paused&&!B.over)B.update(dt);
+    else if(B.over&&B.endT>0){B.endT-=dt;B.update(dt,true);if(B.endT<=0){result(B.win);break}}
+    else break}
   if(B)B.draw();
   raf=requestAnimationFrame(loop);
 }
@@ -1371,60 +1369,57 @@ function heroDraw(){
    좌표: 게임 x → 3D X는 -x (카메라가 +z를 볼 때 오른쪽이 +x가 되도록)
    ========================================================= */
 const G3={};
-const g3ok=()=>!!(window.THREE&&THREE.EffectComposer&&THREE.UnrealBloomPass&&THREE.RenderPass);
+const g3ok=()=>!!(window.THREE&&THREE.WebGLRenderer);
 function g3init(){
   if(G3.r)return true;if(!g3ok())return false;
   const T=THREE,canvas=$('#gl');
   let r;try{r=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'})}catch(e){return false}
-  r.setPixelRatio(Math.min(1.5,window.devicePixelRatio||1));
-  r.shadowMap.enabled=true;r.shadowMap.type=T.PCFSoftShadowMap;
+  r.setPixelRatio(Math.min(1.25,window.devicePixelRatio||1));
   
   const scene=new T.Scene();
   // 하늘: 저녁노을 그라데이션
-  const sky=document.createElement('canvas');sky.width=4;sky.height=256;{const g=sky.getContext('2d'),gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#2a2f4a');gr.addColorStop(.45,'#c9785a');gr.addColorStop(.62,'#f2b46a');gr.addColorStop(1,'#3a2a22');g.fillStyle=gr;g.fillRect(0,0,4,256)}
+  const sky=document.createElement('canvas');sky.width=4;sky.height=256;{const g=sky.getContext('2d'),gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#5fb2ff');gr.addColorStop(.55,'#bfe3ff');gr.addColorStop(1,'#e9f5ff');g.fillStyle=gr;g.fillRect(0,0,4,256)}
   const skyTex=new T.CanvasTexture(sky);scene.background=skyTex;
-  scene.fog=new T.Fog(0xb88a66,34,78);
+  scene.fog=new T.Fog(0xcfe8ff,55,110);
   const cam=new T.PerspectiveCamera(48,1,.1,220);
-  scene.add(new T.HemisphereLight(0xfff1dc,0x4a3828,.62));
-  const dir=new T.DirectionalLight(0xffe2b8,.85);dir.castShadow=true;dir.shadow.mapSize.set(1024,1024);
-  Object.assign(dir.shadow.camera,{left:-12,right:12,top:16,bottom:-10,near:1,far:60});dir.shadow.bias=-.0006;
+  scene.add(new T.HemisphereLight(0xffffff,0x6f7a68,.52));
+  const dir=new T.DirectionalLight(0xfff6e8,.5);
   scene.add(dir,dir.target);
-  const composer=new T.EffectComposer(r,new T.WebGLRenderTarget(256,256,{type:T.HalfFloatType}));composer.addPass(new T.RenderPass(scene,cam));
-  const bloom=new T.UnrealBloomPass(new T.Vector2(256,256),1.1,.45,1.6);composer.addPass(bloom);
-  Object.assign(G3,{T,r,scene,cam,dir,composer,bloom,objs:new Map(),tmp:new T.Matrix4(),q:new T.Quaternion(),v:new T.Vector3(),s:new T.Vector3(),e:new T.Euler(),col:new T.Color()});
+  Object.assign(G3,{T,r,scene,cam,dir,objs:new Map(),tmp:new T.Matrix4(),q:new T.Quaternion(),v:new T.Vector3(),s:new T.Vector3(),e:new T.Euler(),col:new T.Color()});
   g3build();
   return true;
 }
-function g3size(){if(!G3.r)return;G3.r.setSize(VW,VH,false);G3.composer.setSize(VW,VH);G3.bloom.setSize(VW,VH);G3.cam.aspect=VW/VH;G3.cam.updateProjectionMatrix()}
+function g3size(){if(!G3.r)return;G3.r.setSize(VW,VH,false);G3.cam.aspect=VW/VH;G3.cam.updateProjectionMatrix()}
 /* ---------- 재질·텍스처 ---------- */
 function cTex(w,h,fn,rep){const cv2=document.createElement('canvas');cv2.width=w;cv2.height=h;fn(cv2.getContext('2d'),w,h);const t=new THREE.CanvasTexture(cv2);t.anisotropy=4;if(rep){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep[0],rep[1])}return t}
 function g3build(){
   const T=G3.T,S3=G3.scene;
-  const std=(col,o={})=>new T.MeshStandardMaterial({color:col,roughness:o.r??.62,metalness:o.m??0,emissive:o.e??0,emissiveIntensity:o.ei??1,map:o.map||null,flatShading:!!o.flat});
-  const glow=(col,k=4.2)=>{const m=new T.MeshBasicMaterial({color:col});m.color.multiplyScalar(k);m.toneMapped=false;return m};
+  const std=(col,o={})=>new T.MeshLambertMaterial({color:col,emissive:o.e??0,map:o.map||null});
+  const glow=(col,k=1)=>{const m=new T.MeshBasicMaterial({color:col});m.color.multiplyScalar(k);m.toneMapped=false;return m};
   G3.std=std;G3.glow=glow;
   // 돌바닥
-  const stoneTex=cTex(256,256,(g,w,h)=>{g.fillStyle='#9d978d';g.fillRect(0,0,w,h);const R=rng(4);
-    for(let y=0;y<4;y++)for(let x=0;x<4;x++){const ox=(y%2)*32;const v=168+R()*30|0;g.fillStyle=`rgb(${v},${v-5|0},${v-12|0})`;g.fillRect(x*64+ox+3-32*(ox&&x===0?0:0),y*64+3,58,58)}
-    g.strokeStyle='rgba(70,60,50,.55)';g.lineWidth=3;for(let y=0;y<=4;y++){g.beginPath();g.moveTo(0,y*64);g.lineTo(w,y*64);g.stroke();for(let x=0;x<=4;x++){const ox=(y%2)*32;g.beginPath();g.moveTo(x*64+ox,y*64);g.lineTo(x*64+ox,y*64+64);g.stroke()}}
+  const stoneTex=cTex(256,256,(g,w,h)=>{g.fillStyle='#9ea3ab';g.fillRect(0,0,w,h);const R=rng(4);
+    for(let y=0;y<4;y++)for(let x=0;x<4;x++){const ox=(y%2)*32;const v=168+R()*18|0;g.fillStyle=`rgb(${v-4|0},${v|0},${v+6|0})`;g.fillRect(x*64+ox+3-32*(ox&&x===0?0:0),y*64+3,58,58)}
+    g.strokeStyle='rgba(120,128,140,.55)';g.lineWidth=3;for(let y=0;y<=4;y++){g.beginPath();g.moveTo(0,y*64);g.lineTo(w,y*64);g.stroke();for(let x=0;x<=4;x++){const ox=(y%2)*32;g.beginPath();g.moveTo(x*64+ox,y*64);g.lineTo(x*64+ox,y*64+64);g.stroke()}}
     for(let i=0;i<400;i++){g.fillStyle=R()<.5?'rgba(0,0,0,.06)':'rgba(255,255,255,.06)';g.fillRect(R()*w,R()*h,2,2)}},[1.5,1.5]);
-  const wallTex=cTex(256,128,(g,w,h)=>{g.fillStyle='#8f877c';g.fillRect(0,0,w,h);const R=rng(9);
-    for(let y=0;y<4;y++)for(let x=0;x<5;x++){const ox=(y%2)*26;const v=130+R()*40|0;g.fillStyle=`rgb(${v},${v-8|0},${v-18|0})`;g.fillRect(x*52+ox-26+3,y*32+3,46,26)}},[4,1]);
-  const dirtTex=cTex(128,128,(g,w,h)=>{g.fillStyle='#4a3a2a';g.fillRect(0,0,w,h);const R=rng(2);for(let i=0;i<300;i++){g.fillStyle=R()<.5?'rgba(0,0,0,.18)':'rgba(140,110,70,.18)';g.beginPath();g.arc(R()*w,R()*h,1+R()*4,0,PI2);g.fill()}},[6,4]);
+  const wallTex=cTex(256,128,(g,w,h)=>{g.fillStyle='#b9b2a6';g.fillRect(0,0,w,h);const R=rng(9);
+    for(let y=0;y<4;y++)for(let x=0;x<5;x++){const ox=(y%2)*26;const v=200+R()*35|0;g.fillStyle=`rgb(${v},${v-8|0},${v-18|0})`;g.fillRect(x*52+ox-26+3,y*32+3,46,26)}},[4,1]);
+  const dirtTex=cTex(128,128,(g,w,h)=>{g.fillStyle='#78c04a';g.fillRect(0,0,w,h);const R=rng(2);for(let i=0;i<300;i++){g.fillStyle=R()<.5?'rgba(30,90,20,.22)':'rgba(200,240,140,.22)';g.beginPath();g.arc(R()*w,R()*h,1+R()*4,0,PI2);g.fill()}},[6,4]);
   const woodTex=cTex(128,128,(g,w,h)=>{g.fillStyle='#b8793a';g.fillRect(0,0,w,h);for(let x=0;x<w;x+=16){g.fillStyle=x%32?'#c98a46':'#a86a2e';g.fillRect(x,0,14,h);g.fillStyle='rgba(60,30,10,.5)';g.fillRect(x+14,0,2,h)}});
   // 구간(길·성벽·횃불)을 재활용한다
   const SEG=10,segs=[];
-  const roadG=new T.PlaneGeometry(6,SEG);roadG.rotateX(-Math.PI/2);
+  const roadG=new T.PlaneGeometry(6,SEG);roadG.rotateX(-Math.PI/2);const dashG=new T.PlaneGeometry(.16,2.4);dashG.rotateX(-Math.PI/2);const dashM=new T.MeshBasicMaterial({color:0xeef2f6});
   const dirtG=new T.PlaneGeometry(40,SEG);dirtG.rotateX(-Math.PI/2);
   const wallG=new T.BoxGeometry(.7,1.1,SEG);const capG=new T.BoxGeometry(.9,.18,SEG);
   const merlonG=new T.BoxGeometry(.9,.35,.7);
-  const roadM=std(0xffffff,{map:stoneTex,r:.9}),dirtM=std(0xffffff,{map:dirtTex,r:1}),wallM=std(0xffffff,{map:wallTex,r:.9}),capM=std(0xb3aa9c,{r:.85});
+  const roadM=std(0xffffff,{map:stoneTex,r:.9}),dirtM=std(0xffffff,{map:dirtTex,r:1}),wallM=std(0xffffff,{map:wallTex,r:.9}),capM=std(0x4a7fd6);
   const poleM=std(0x5a3a1c),flameM=glow(0xffb040),bannerM=[std(0x2f6fe0,{r:.7}),std(0xd94a3a,{r:.7})];
   const poleG=new T.CylinderGeometry(.05,.06,.9,6),flameG=new T.SphereGeometry(.13,8,6),bannerG=new T.PlaneGeometry(.55,1.1);
   const lights=[];
   for(let i=0;i<9;i++){
     const g=new T.Group();
-    const road=new T.Mesh(roadG,roadM);road.receiveShadow=true;g.add(road);
+    const road=new T.Mesh(roadG,roadM);g.add(road);
+    for(let k=0;k<2;k++){const ds=new T.Mesh(dashG,dashM);ds.position.set(0,.01,-SEG/4+k*SEG/2);g.add(ds)}
     for(const sd of[-1,1]){const d=new T.Mesh(dirtG,dirtM);d.position.set(sd*23.3,-.02,0);d.receiveShadow=true;g.add(d);
       const w=new T.Mesh(wallG,wallM);w.position.set(sd*3.35,.55,0);w.castShadow=true;w.receiveShadow=true;g.add(w);
       const cp=new T.Mesh(capG,capM);cp.position.set(sd*3.35,1.19,0);cp.receiveShadow=true;g.add(cp);
@@ -1435,12 +1430,11 @@ function g3build(){
     }
     S3.add(g);segs.push(g);
   }
-  for(let i=0;i<4;i++){const l=new T.PointLight(0xffa040,1.4,9,2);S3.add(l);lights.push(l)}
-  G3.segs=segs;G3.SEG=SEG;G3.tlights=lights;
+  G3.segs=segs;G3.SEG=SEG;G3.tlights=[];
   // ---------- 캐릭터 리그 (부위별 InstancedMesh) ----------
   const IM=(geo,mat,max,shadow=true)=>{const m=new T.InstancedMesh(geo,mat,max);m.instanceMatrix.setUsage(T.DynamicDrawUsage);m.castShadow=shadow;m.receiveShadow=false;m.count=0;m.frustumCulled=false;S3.add(m);return m};
   const part=(geo,mat,max,off,rot=[0,0,0],scl=[1,1,1],o={})=>{const mesh=IM(geo,mat,max,o.shadow!==false);const local=new T.Matrix4().compose(new T.Vector3(...off),new T.Quaternion().setFromEuler(new T.Euler(...rot)),new T.Vector3(...scl));return{mesh,local,off,rot,scl,swing:o.swing||0,tint:o.tint||null}};
-  const silver=std(0xdfe5ea,{m:.65,r:.3}),dark=std(0x343a46),gold=std(0xf2c440,{m:.5,r:.35}),wood=std(0x9a6a35),white=std(0xffffff);
+  const silver=std(0xf4f7fa),dark=std(0x2c3340),gold=std(0xffcc33),wood=std(0xa8743c),white=std(0xffffff);
   const NK=420;
   const box=(x,y,z)=>new T.BoxGeometry(x,y,z),sph=(r,a=12,b=10)=>new T.SphereGeometry(r,a,b),cyl=(a,b,h,s=10)=>new T.CylinderGeometry(a,b,h,s),cone=(r,h,s=10)=>new T.ConeGeometry(r,h,s),cap=(r,l)=>new T.CapsuleGeometry(r,l,4,10);
   G3.knight=[
@@ -1458,7 +1452,7 @@ function g3build(){
     part(cone(.035,.13,6),silver,NK,[-.22,1.2,0])
   ];
   G3.knight[4].mesh.count=0;
-  const gskin=std(0xffffff,{r:.55}),vest=std(0x8a5a2e),eye=glow(0xffe23a),mouth=std(0x3a1010),dgreen=std(0x3a6a22);
+  const gskin=std(0xffffff),vest=std(0xb4552d),eye=glow(0xfff23a),mouth=std(0x3a1010),dgreen=std(0x2e7a1e);
   const NG=700;
   G3.gob=[
     part(box(.08,.15,.08),dgreen,NG,[.065,.08,0],[0,0,0],[1,1,1],{swing:1}),
@@ -1483,8 +1477,9 @@ function g3build(){
     part(cone(.025,.09,6),white,NO,[.06,.52,.18],[-.3,0,0]),
     part(cone(.025,.09,6),white,NO,[-.06,.52,.18],[-.3,0,0])
   ];
+  const blobG=new T.CircleGeometry(1,16);blobG.rotateX(-Math.PI/2);const blobM=new T.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.22,depthWrite:false});G3.blob=IM(blobG,blobM,1400,false);
   // 발사체·파티클
-  const shotG=new T.CylinderGeometry(.035,.02,.6,6);shotG.rotateX(Math.PI/2);
+  const shotG=new T.CylinderGeometry(.06,.035,.75,6);shotG.rotateX(Math.PI/2);
   G3.shot=IM(shotG,glow(0xffffff),900,false);
   const fbG=new T.SphereGeometry(.28,12,10);G3.fball=IM(fbG,glow(0xffffff),40,false);
   G3.part=IM(new T.BoxGeometry(.11,.11,.11),glow(0xffffff),1400,false);
@@ -1583,11 +1578,12 @@ function g3item(kind,wt){
 }
 /* ---------- 매 프레임 그리기 ---------- */
 const g3W=x=>-x;
-function g3begin(){for(const p of[...G3.knight,...G3.gob,...G3.orc])p.mesh.count=0;G3.shot.count=0;G3.part.count=0;G3.fball.count=0;G3.bolt.count=0}
-function g3end(){for(const p of[...G3.knight,...G3.gob,...G3.orc,{mesh:G3.shot},{mesh:G3.part},{mesh:G3.fball},{mesh:G3.bolt}]){p.mesh.instanceMatrix.needsUpdate=true;if(p.mesh.instanceColor)p.mesh.instanceColor.needsUpdate=true}}
-const TINTS={blue:{body:0x3a7ff0,plume:0x3a7ff0},skin:{skin:0x7fcf45},orc:{skin:0x5a8f36},hurt:{skin:0xffffff}};
+function g3begin(){for(const p of[...G3.knight,...G3.gob,...G3.orc])p.mesh.count=0;G3.blob.count=0;G3.shot.count=0;G3.part.count=0;G3.fball.count=0;G3.bolt.count=0}
+function g3end(){for(const p of[...G3.knight,...G3.gob,...G3.orc,{mesh:G3.blob},{mesh:G3.shot},{mesh:G3.part},{mesh:G3.fball},{mesh:G3.bolt}]){p.mesh.instanceMatrix.needsUpdate=true;if(p.mesh.instanceColor)p.mesh.instanceColor.needsUpdate=true}}
+const TINTS={blue:{body:0x2f86ff,plume:0x2f86ff},skin:{skin:0x6edc3a},orc:{skin:0x3f9a2a},hurt:{skin:0xffffff}};
 function g3rig(rig,x,y,z,yaw,scale,phase,tint){
   const T=G3.T,fm=G3.tmp2||(G3.tmp2=new T.Matrix4()),lm=G3.tmp3||(G3.tmp3=new T.Matrix4());
+  if(rig!==G3.orc)g3inst(G3.blob,x,.02,z,0,0,0,.26*scale,1,.26*scale);
   G3.q.setFromEuler(G3.e.set(0,yaw,0));fm.compose(G3.v.set(x,y,z),G3.q,G3.s.set(scale,scale,scale));
   for(const p of rig){const m=p.mesh;if(m.count>=m.instanceMatrix.count)continue;
     let L=p.local;
@@ -1619,7 +1615,7 @@ function g3fxUpdate(dt){
   for(const f of G3.fx)if(f.t>=f.d){G3.scene.remove(f.m);f.m.material.dispose()}
   G3.fx=G3.fx.filter(f=>f.t<f.d);
 }
-function g3flash(x,y,z,r,col,d=.35){const T=G3.T,m=new T.MeshBasicMaterial({color:col,transparent:true,opacity:.9,depthWrite:false,blending:T.AdditiveBlending});m.color.multiplyScalar(3);m.toneMapped=false;
+function g3flash(x,y,z,r,col,d=.35){const T=G3.T,m=new T.MeshBasicMaterial({color:col,transparent:true,opacity:.9,depthWrite:false,blending:T.AdditiveBlending});m.toneMapped=false;
   const o=new T.Mesh(G3.flashG,m);o.position.set(g3W(x),y,z);G3.scene.add(o);G3.fx.push({kind:'flash',m:o,t:0,d,r})}
 function g3ring(x,z,r,col,d=.45){const T=G3.T,m=new T.MeshBasicMaterial({color:col,transparent:true,opacity:.9,depthWrite:false,blending:T.AdditiveBlending,side:T.DoubleSide});m.toneMapped=false;
   const o=new T.Mesh(G3.ringG,m);o.position.set(g3W(x),.08,z);G3.scene.add(o);G3.fx.push({kind:'ring',m:o,t:0,d,r})}
@@ -1628,14 +1624,14 @@ function g3world(camX,camZ,focusZ){
   G3.segs.forEach((g,i)=>{g.position.set(0,0,base+i*SEG+SEG/2)});
   G3.tlights.forEach((l,i)=>{const z=Math.floor((focusZ-2)/SEG)*SEG+SEG/2+Math.floor(i/2)*SEG;l.position.set((i%2?1:-1)*3.0,2.2,z);l.intensity=1.2+Math.sin(B.t*13+i)*.25});
 }
-function g3render(){G3.composer.render()}
+function g3render(){G3.r.render(G3.scene,G3.cam)}
 
 /* ---------- 돌격전 3D ---------- */
 function run3dDraw(){
   const T=G3.T;G3.frame=(G3.frame||0)+1;g3begin();
   const sx=B.sqX,sz=B.sqZ,shake=B.shake3||0;
-  const cx=g3W(sx*.35)+(Math.random()-.5)*shake,cz=sz-7.4;
-  G3.cam.position.set(cx,7.6+(Math.random()-.5)*shake,cz);G3.cam.lookAt(g3W(sx*.35),0,sz+6.5);
+  const cx=g3W(sx*.35)+(Math.random()-.5)*shake,cz=sz-6.8;
+  G3.cam.position.set(cx,10.5+(Math.random()-.5)*shake,cz);G3.cam.lookAt(g3W(sx*.35),0,sz+7.5);
   G3.dir.position.set(g3W(sx)-6,14,sz-4);G3.dir.target.position.set(g3W(sx),0,sz+6);
   g3world(cx,cz,sz);
   const t=B.t,n=Math.min(Math.round(B.N),160),blue=TINTS.blue;
@@ -1652,7 +1648,7 @@ function run3dDraw(){
     }else if(e.t==='g'){
       const o=g3obj(e,()=>g3gate(e)),good=(e.op==='+'&&e.v>=0)||e.op==='x',col=G3COL[e.purple?'purple':good?'blue':'red'];
       o.position.set(g3W((e.x0+e.x1)/2),0,e.z);o.visible=e.z>sz-.6;o.userData.panel.material.color.setHex(col[1]);o.userData.panel.material.opacity=e.used?.12:.62;
-      o.userData.frame.forEach(f=>f.material.color.setHex(col[0]).multiplyScalar(3.5));
+      o.userData.frame.forEach(f=>f.material.color.setHex(col[0]));
     }else if(e.t==='c'){const o=g3obj(e,()=>g3barrel(e.kind==='king'));o.position.set(g3W(e.x),0,e.z);o.rotation.y=Math.sin(t*2+e.z)*.08}
     else if(e.t==='o'){const o=g3obj(e,()=>g3barricade());o.position.set(g3W(e.x),0,e.z);
       const it=o.userData.item;const key=e.kind+(e.kind==='weapon'?B.wt:'');if(it.userData.key!==key){it.clear();it.add(g3item(e.kind,B.wt+1));it.userData.key=key}
@@ -1686,7 +1682,7 @@ function hero3dDraw(){
   const T=G3.T;G3.frame=(G3.frame||0)+1;g3begin();
   const sx=B.sqX,t=B.t,shake=Math.max(B.shake||0,B.shake3||0);
   const cx=g3W(sx*.3)+(Math.random()-.5)*shake;
-  G3.cam.position.set(cx,10.2+(Math.random()-.5)*shake,-8.8);G3.cam.lookAt(g3W(sx*.3),0,8.5);
+  G3.cam.position.set(cx,12+(Math.random()-.5)*shake,-9.6);G3.cam.lookAt(g3W(sx*.3),0,6.8);
   G3.dir.position.set(g3W(sx)-6,15,-4);G3.dir.target.position.set(g3W(sx),0,8);
   g3world(cx,-8.8,0);
   for(const u of B.units){if(u.hp<=0)continue;const x=g3W(sx+u.ox);
@@ -1721,12 +1717,17 @@ function hero3dDraw(){
 /* ---------- 3D 모드 켜고 끄기 ---------- */
 let g3last=0;
 function g3reset(){if(!G3.r)return;for(const[,o]of G3.objs)G3.scene.remove(o);G3.objs.clear();for(const f of G3.fx)G3.scene.remove(f.m);G3.fx=[]}
+let view3d=(()=>{try{return localStorage.getItem('zs-view')!=='2d'}catch(e){return true}})();
+function viewBtn(){const b=$('#bView');if(!b)return;b.hidden=!(B&&(B.mode==='run'||B.mode==='hero'));b.textContent=B&&B.g3?'3D':'2D'}
+$('#bView')&&($('#bView').onclick=()=>{if(!B)return;view3d=!B.g3;try{localStorage.setItem('zs-view',view3d?'3d':'2d')}catch(e){}
+  if(B.g3){B.g3=false;$('#gl').hidden=true;B.layout=B.mode==='run'?runLayout:heroLayout;B.draw=B.mode==='run'?runDraw:heroDraw;B.layout()}
+  else g3attach(B.mode==='run'?run3dDraw:hero3dDraw);viewBtn()});
 function g3attach(draw){
-  if(!g3init())return false;
+  if(!view3d||!g3init()){viewBtn();return false}
   g3reset();B.g3=true;$('#gl').hidden=false;
   const base=B.layout;B.layout=()=>{base&&base();g3size()};B.layout();
   B.draw=()=>{const now=performance.now(),dt=Math.min(.05,(now-(g3last||now))/1000);g3last=now;B.shake3=Math.max(0,(B.shake3||0)-dt*1.5);g3fxUpdate(dt);draw()};
-  return true;
+  viewBtn();return true;
 }
 
 /* ---------- 디버그/시뮬레이션 훅 ---------- */
