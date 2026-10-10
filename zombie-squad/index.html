@@ -635,7 +635,7 @@ function startRun(){
   if(runAtt.st!==S.stage)runAtt={st:S.stage,n:0};else runAtt.n++;
   const st=S.stage,lv=genRun(st,runAtt.n),hid=S.hero;
   B={mode:'run',st,...lv,sqZ:0,sqX:0,tx:0,N:ST.men(),peak:ST.men(),drain:0,dmgB:1,rateB:1,phase:'run',fireCd:0,heroCd:1,
-     hid,hlv:S.heroes[hid],shots:[],pend:[],wt:0,ally:0,parts:[],floats:[],t:0,layout:runLayout,update:runUpdate,draw:runDraw,
+     hid,hlv:S.heroes[hid],shots:[],pend:[],sparks:[],items:[],aura:0,wt:0,ally:0,parts:[],floats:[],t:0,layout:runLayout,update:runUpdate,draw:runDraw,
      progress:()=>B.sqZ/(B.boss.z-16)*.8+(1-B.boss.hp/B.boss.mhp)*.2,
      onDrag:(dx)=>{B.tx+=dx/(F/CAMD)*1.15}};
   openBattle('STAGE '+st,'좌우로 드래그해서 기사단을 움직이세요');
@@ -646,28 +646,43 @@ function proj(x,z,h=0){const d=z-(B.sqZ-CAMD);if(d<.35)return null;const s=F/d;r
 const cr=()=>.17*Math.sqrt(Math.min(B.N,160))+.25;
 function addFloat(x,z,text,col){B.floats.push({x,z,h:1.6,text,col,life:1.1})}
 function burst(x,z,h,col,n,sp=2.5){for(let i=0;i<n&&B.parts.length<500;i++)B.parts.push({x,z,h,vx:(Math.random()-.5)*sp,vz:(Math.random()-.5)*sp,vh:Math.random()*sp,life:.5+Math.random()*.4,col});
-  if(B.g3&&n>=10){g3flash(x,h+.3,z,.5+n*.025,col,.3);if(n>=16){g3ring(x,z,1.5+n*.06,col);B.shake3=Math.min(.45,(B.shake3||0)+.12)}}}
+  if(B.g3&&n>=10){g3flash(x,h+.3,z,.5+n*.025,col,.3);if(n>=14){g3flash(x,h+.5,z,.8+n*.03,0xffa030,.4);for(let i=0;i<3;i++)g3smoke(x,z,.35+n*.012)}if(n>=16){g3ring(x,z,1.5+n*.06,col);B.shake3=Math.min(.45,(B.shake3||0)+.12)}}}
 function runHit(e,d){
   e.hp-=d;if(e.t==='b')e.flash3=.07;
   if(e.hp<=0&&!e.dead){
     e.dead=true;
     if(e.t==='z')burst(e.x,e.z,.6*e.sz,'#8fd94f',e.sz>1?16:6);
-    if(e.t==='c'){burst(e.x,e.z,.6,'#c98a3d',16,3);burst(e.x,e.z,.6,'#4a95ff',10,3);
-      B.N=Math.min(MAXN,B.N+e.amt);addFloat(e.x,e.z,`기사 +${e.amt}`,'#9fd3ff');
-      if(e.kind==='king'){B.dmgB+=.3;B.ally=(B.ally||0)+1;addFloat(e.x,e.z-1,'영웅 합류! 공격력 +30%','#ffd166')}
-      runBuffs()}
-    if(e.t==='o'){burst(e.x,e.z,.6,'#a8743e',18,3);burst(e.x,e.z,.8,'#ffd166',10,3);
-      if(e.kind==='weapon'){if(B.wt<3){B.wt++;addFloat(e.x,e.z,['','석궁 볼트!','불화살!','마법 화살!'][B.wt],'#ffd166')}else addFloat(e.x,e.z,'공격력 +25%','#ffd166');B.dmgB+=.25}
-      else{B.rateB+=.2;addFloat(e.x,e.z,'RATE +20%','#ffd166')}
-      runBuffs()}
+    if(e.t==='c'){burst(e.x,e.z,.6,'#c98a3d',18,3.5);burst(e.x,e.z,.6,'#ffb040',12,3);
+      B.items.push({kind:e.kind==='king'?'king':'men',amt:e.amt,x:e.x,z:e.z,t:0,dur:.75})}
+    if(e.t==='o'){burst(e.x,e.z,.6,'#a8743e',18,3.5);burst(e.x,e.z,.8,'#ffb040',14,3);
+      B.items.push({kind:e.kind,x:e.x,z:e.z,t:0,dur:.75})}
     if(e.t==='b'){burst(e.x,e.z,1.5,'#c3cfa0',40,5);finish(true)}
   }
 }
 const WK=['arrow','gold','firearrow','magic'];
-function shoot(e,n,h=.6){
-  const r=cr();
-  for(let i=0;i<n;i++)B.shots.push({x0:B.sqX+(Math.random()-.5)*r*1.6,z0:B.sqZ+(Math.random()-.5)*r,x1:(e.x0!=null?clamp(B.sqX,e.x0+.3,e.x1-.3):e.x)+(Math.random()-.5)*.4,z1:e.z,h1:h*(e.sz||1),life:.42,max:.42,arc:.35,kind:WK[B.wt]})
+// 조준만 기록하고, 실제 총알 줄기는 연사 발사기(emitBullets)가 쏜다
+function shoot(e,n,h=.6){B.aim={e,x:(e.x0!=null?clamp(B.sqX,e.x0+.3,e.x1-.3):e.x),z:e.z,h:h*(e.sz||1),t:.45}}
+function emitBullets(dt){
+  const a=B.aim;if(!a||a.t<=0)return;a.t-=dt;if(a.e&&!a.e.dead){a.z=a.e.z;if(a.e.x0==null)a.x=a.e.x}
+  // 앞줄 병사(최대 40명)가 각자 0.13초마다 한 발씩
+  const n=Math.min(B.N,160),shooters=Math.max(1,Math.min(n,40)),per=.13/Math.sqrt(B.rateB*ST.rate());
+  B.emitAcc=(B.emitAcc||0)+dt*shooters/per;
+  while(B.emitAcc>=1){const k=Math.min(8,Math.floor(B.emitAcc));B.emitAcc-=k;
+    for(let i=0;i<k&&B.shots.length<420;i++){const o=OFF[Math.floor(Math.random()*shooters)]||[0,0];
+      const x0=B.sqX+o[0],z0=B.sqZ+o[1]+.2,x1=x0*.55+a.x*.45+(Math.random()-.5)*.25,z1=a.z+(Math.random()-.5)*.5,life=Math.max(.06,Math.hypot(x1-x0,z1-z0)/22);
+      B.shots.push({x0,z0,h0:.55,x1,z1,h1:a.h+(Math.random()-.5)*.2,life,max:life,arc:0,kind:WK[B.wt],vis:1})}}
 }
+const ITEM_TXT={weapon:()=>B.wt<3?['','석궁 볼트','불화살','마법 화살'][B.wt+1]:'공격력 +25%',rate:()=>'RATE +20%'};
+function applyItem(it){
+  if(it.kind==='men'){B.N=Math.min(MAXN,B.N+it.amt);addFloat(B.sqX,B.sqZ+.6,`기사 +${it.amt}`,'#9fd3ff')}
+  else if(it.kind==='king'){B.N=Math.min(MAXN,B.N+it.amt);B.dmgB+=.3;B.ally=(B.ally||0)+1;addFloat(B.sqX,B.sqZ+.6,'영웅 합류! 공격력 +30%','#ffd166')}
+  else if(it.kind==='weapon'){const t=ITEM_TXT.weapon();if(B.wt<3)B.wt++;B.dmgB+=.25;addFloat(B.sqX,B.sqZ+.6,'LEVEL UP! '+t,'#ffd166')}
+  else{B.rateB+=.2;addFloat(B.sqX,B.sqZ+.6,'RATE +20%','#ffd166')}
+  B.aura=1;burst(B.sqX,B.sqZ,.4,'#ffd166',14,3.5);
+  if(B.g3){g3ring(B.sqX,B.sqZ,cr()*2.4+1.4,0xffd166,.6);g3flash(B.sqX,.6,B.sqZ,cr()+.9,0xffcf40,.45)}
+  runBuffs();
+}
+function itemPos(it){const u=Math.min(1,it.t/it.dur),k=u*u*(3-2*u);return{x:it.x+(B.sqX-it.x)*k,z:it.z+(B.sqZ+.3-it.z)*k,h:1.1+Math.sin(Math.PI*u)*1.6,u}}
 // 데미지는 화살이 닿는 순간 들어간다
 function hitLater(e,d){e.pend=(e.pend||0)+d;B.pend.push({e,d,t:.4})}
 const avail=e=>e.hp-(e.pend||0);
@@ -733,6 +748,7 @@ function runUpdate(dt,frozen){
       }
     }
     B.fireCd-=dt;while(B.fireCd<=0){B.fireCd+=.3;volley(.3)}
+    emitBullets(dt);
     for(const q of B.pend){q.t-=dt;if(q.t<=0){q.e.pend-=q.d;if(!q.e.dead)runHit(q.e,q.d)}}B.pend=B.pend.filter(q=>q.t>0);
     if(B.ally){B.allyCd=(B.allyCd||0)-dt;if(B.allyCd<=0){B.allyCd=.9;const tg=B.ents.filter(e=>!e.dead&&(e.t==='z'||e.t==='b')&&e.z>B.sqZ&&e.z-B.sqZ<RANGE).sort((a,b)=>a.z-b.z)[0];if(tg)B.shots.push({x0:B.sqX+.9,z0:B.sqZ-.2,x1:tg.x,z1:tg.z,h1:tg.t==='b'?1.6:.6,life:.38,max:.38,arc:.15,kind:'beam',hero:3})}}
     B.heroCd-=dt;if(B.heroCd<=0)runHero();
@@ -743,7 +759,10 @@ function runUpdate(dt,frozen){
   for(const p of B.parts){p.x+=p.vx*dt;p.z+=p.vz*dt;p.h+=p.vh*dt;p.vh-=9*dt;if(p.h<0){p.h=0;p.vh*=-.3;p.vx*=.6;p.vz*=.6}p.life-=dt}
   B.parts=B.parts.filter(p=>p.life>0);
   for(const f of B.floats){f.h+=1.4*dt;f.life-=dt}B.floats=B.floats.filter(f=>f.life>0);
-  for(const s of B.shots)s.life-=dt;B.shots=B.shots.filter(s=>s.life>0);
+  for(const s of B.shots){s.life-=dt;if(s.life<=0&&s.vis&&Math.random()<.3)B.sparks.push({x:s.x1,z:s.z1,h:s.h1,life:.13,kind:s.kind})}B.shots=B.shots.filter(s=>s.life>0);
+  for(const p of B.sparks)p.life-=dt;B.sparks=B.sparks.filter(p=>p.life>0);
+  for(const it of B.items){it.t+=dt;if(it.t>=it.dur&&!it.done){it.done=1;applyItem(it)}}B.items=B.items.filter(it=>!it.done);
+  B.aura=Math.max(0,(B.aura||0)-dt*1.2);
   $('#hProg').style.width=clamp(B.sqZ/(boss.z-16)*100,0,100)+'%';
   $('#hBoss').style.width=clamp(boss.hp/boss.mhp*100,0,100)+'%';
 }
@@ -862,6 +881,9 @@ function runDraw(){
     missile(a.x,a.y,Math.atan2(a.y-b.y,a.x-b.x),Math.max(6,a.s*(s.hero?.46:.36)),s.hero===2?'fire':s.hero===3?'beam':s.hero?'gold':(s.kind||'arrow'));
   }
   c.globalAlpha=1;
+  for(const p of B.sparks||[]){const q=proj(p.x,p.z,p.h);if(q)glow(q.x,q.y,q.s*.35,'rgba(255,190,80,.8)')}
+  for(const it of B.items||[]){const ip=itemPos(it),q=proj(ip.x,ip.z,ip.h);if(!q)continue;glow(q.x,q.y,q.s*.8,'rgba(255,200,60,.55)');c.fillStyle=it.kind==='men'?'#2f86ff':'#ffcc33';c.beginPath();c.arc(q.x,q.y,q.s*.3,0,PI2);c.fill();c.strokeStyle='#fff';c.lineWidth=2;c.stroke()}
+  if(B.aura>0){const q=proj(B.sqX,B.sqZ);if(q){c.globalAlpha=B.aura;c.strokeStyle='#ffd166';c.lineWidth=4;c.beginPath();c.ellipse(q.x,q.y,q.s*(cr()+.5)*(1.3-B.aura*.3),q.s*(cr()+.5)*.45*(1.3-B.aura*.3),0,0,PI2);c.stroke();c.globalAlpha=1}}
   for(const p of B.parts){const q=proj(p.x,p.z,p.h);if(!q)continue;c.fillStyle=p.col;const r=Math.max(1.5,q.s*.06);c.fillRect(q.x-r/2,q.y-r/2,r,r)}
   for(const f of B.floats){const q=proj(f.x,f.z,f.h);if(!q)continue;c.globalAlpha=clamp(f.life*1.5,0,1);outlined(f.text,q.x,q.y,Math.max(18,q.s*.5),f.col,'#000')}
   c.globalAlpha=1;
@@ -1482,6 +1504,8 @@ function g3build(){
   const shotG=new T.CylinderGeometry(.06,.035,.75,6);shotG.rotateX(Math.PI/2);
   G3.shot=IM(shotG,glow(0xffffff),900,false);
   const fbG=new T.SphereGeometry(.28,12,10);G3.fball=IM(fbG,glow(0xffffff),40,false);
+  {const hm=new T.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.42,depthWrite:false,blending:T.AdditiveBlending});hm.toneMapped=false;G3.halo=IM(new T.SphereGeometry(1,10,8),hm,700,false)}
+  G3.smokeG=new T.SphereGeometry(1,10,8);
   G3.part=IM(new T.BoxGeometry(.11,.11,.11),glow(0xffffff),1400,false);
   G3.flashG=new T.SphereGeometry(1,16,12);
   const ringG=new T.RingGeometry(.8,1,40);ringG.rotateX(-Math.PI/2);G3.ringG=ringG;
@@ -1578,8 +1602,8 @@ function g3item(kind,wt){
 }
 /* ---------- 매 프레임 그리기 ---------- */
 const g3W=x=>-x;
-function g3begin(){for(const p of[...G3.knight,...G3.gob,...G3.orc])p.mesh.count=0;G3.blob.count=0;G3.shot.count=0;G3.part.count=0;G3.fball.count=0;G3.bolt.count=0}
-function g3end(){for(const p of[...G3.knight,...G3.gob,...G3.orc,{mesh:G3.blob},{mesh:G3.shot},{mesh:G3.part},{mesh:G3.fball},{mesh:G3.bolt}]){p.mesh.instanceMatrix.needsUpdate=true;if(p.mesh.instanceColor)p.mesh.instanceColor.needsUpdate=true}}
+function g3begin(){for(const p of[...G3.knight,...G3.gob,...G3.orc])p.mesh.count=0;G3.blob.count=0;G3.halo.count=0;G3.shot.count=0;G3.part.count=0;G3.fball.count=0;G3.bolt.count=0}
+function g3end(){for(const p of[...G3.knight,...G3.gob,...G3.orc,{mesh:G3.blob},{mesh:G3.halo},{mesh:G3.shot},{mesh:G3.part},{mesh:G3.fball},{mesh:G3.bolt}]){p.mesh.instanceMatrix.needsUpdate=true;if(p.mesh.instanceColor)p.mesh.instanceColor.needsUpdate=true}}
 const TINTS={blue:{body:0x2f86ff,plume:0x2f86ff},skin:{skin:0x6edc3a},orc:{skin:0x3f9a2a},hurt:{skin:0xffffff}};
 function g3rig(rig,x,y,z,yaw,scale,phase,tint){
   const T=G3.T,fm=G3.tmp2||(G3.tmp2=new T.Matrix4()),lm=G3.tmp3||(G3.tmp3=new T.Matrix4());
@@ -1596,27 +1620,32 @@ function g3obj(key,make){let o=G3.objs.get(key);if(!o){o=make();G3.scene.add(o);
 function g3sweep(){for(const[k,o]of G3.objs)if(o.userData.seen!==G3.frame){G3.scene.remove(o);G3.objs.delete(k)}}
 function g3proj(x,y,z){const v=G3.v.set(g3W(x),y,z).project(G3.cam);if(v.z>1)return null;const sx=(v.x+1)/2*VW,sy=(1-v.y)/2*VH;
   const v2=G3.s.set(g3W(x),y+1,z).project(G3.cam);return{x:sx,y:sy,s:Math.abs((1-v2.y)/2*VH-sy)}}
-const SHOTCOL={arrow:0xffd75a,gold:0xfff2a0,firearrow:0xff7a2a,magic:0xe070ff,beam:0x7fe6ff,fire:0xff8a3d,bolt:0xbff4ff};
+const HALOCOL={arrow:0xff6a10,gold:0xffb020,firearrow:0xff3a00,magic:0xb030ff,beam:0x40c8ff,bolt:0x80e0ff};
+const SHOTCOL={arrow:0xffc84a,gold:0xfff070,firearrow:0xff7a2a,magic:0xf080ff,beam:0x7fe6ff,fire:0xff8a3d,bolt:0xbff4ff};
 function g3partsAndShots(){
   for(const s of B.shots){
     const t=clamp(1-s.life/s.max,0,1),h0=s.h0??.5,arc=s.arc||0,P=u=>[s.x0+(s.x1-s.x0)*u,h0+(s.h1-h0)*u+arc*4*u*(1-u),s.z0+(s.z1-s.z0)*u];
     const a=P(t),b=P(Math.min(1,t+.05)),dx=g3W(b[0])-g3W(a[0]),dy=b[1]-a[1],dz=b[2]-a[2];
     if(s.kind==='fire'||s.hero===2){g3inst(G3.fball,g3W(a[0]),a[1],a[2],0,0,0,s.big?1.4:.7,s.big?1.4:.7,s.big?1.4:.7,0xff8a3d);continue}
     const yaw=Math.atan2(dx,dz),pitch=-Math.atan2(dy,Math.hypot(dx,dz)),k=s.kind||'arrow',big=s.hero?1.6:k==='magic'||k==='beam'?1.4:1;
+    if(s.vis){g3inst(G3.shot,g3W(a[0]),a[1],a[2],pitch,yaw,0,1.15*big,1.15*big,.75*big,SHOTCOL[k]||0xfff0a0);g3inst(G3.halo,g3W(a[0]),a[1],a[2],pitch,yaw,0,.075*big,.075*big,.32*big,HALOCOL[k]||0xff8a20);continue}
     g3inst(G3.shot,g3W(a[0]),a[1],a[2],pitch,yaw,0,big,big,big*(k==='beam'?2:1.3),SHOTCOL[s.hero===1?'gold':k]||0xffd75a);
   }
+  if(B.sparks)for(const p of B.sparks){const k=p.life/.13;g3inst(G3.halo,g3W(p.x),p.h,p.z,0,0,0,.28*k+.08,.28*k+.08,.28*k+.08,HALOCOL[p.kind]||0xffa040)}
   for(const p of B.parts){const k=clamp(p.life*1.6,.2,1);g3inst(G3.part,g3W(p.x),p.h+.05,p.z,p.life*7,p.life*5,0,k,k,k,p.col)}
 }
 function g3fxUpdate(dt){
   const T=G3.T;
   for(const f of G3.fx){f.t+=dt;const k=f.t/f.d;
     if(f.kind==='flash'){f.m.scale.setScalar(f.r*(.4+k*1.2));f.m.material.opacity=Math.max(0,1-k)*.9}
-    if(f.kind==='ring'){f.m.scale.setScalar(.2+k*f.r);f.m.material.opacity=Math.max(0,1-k)*.9}}
+    if(f.kind==='ring'){f.m.scale.setScalar(.2+k*f.r);f.m.material.opacity=Math.max(0,1-k)*.9}
+    if(f.kind==='smoke'){f.m.scale.setScalar(f.r*(.5+k*.9));f.m.position.y=f.y+k*1.2;f.m.material.opacity=Math.max(0,1-k)*.55}}
   for(const f of G3.fx)if(f.t>=f.d){G3.scene.remove(f.m);f.m.material.dispose()}
   G3.fx=G3.fx.filter(f=>f.t<f.d);
 }
 function g3flash(x,y,z,r,col,d=.35){const T=G3.T,m=new T.MeshBasicMaterial({color:col,transparent:true,opacity:.9,depthWrite:false,blending:T.AdditiveBlending});m.toneMapped=false;
   const o=new T.Mesh(G3.flashG,m);o.position.set(g3W(x),y,z);G3.scene.add(o);G3.fx.push({kind:'flash',m:o,t:0,d,r})}
+function g3smoke(x,z,r){const T=G3.T,m=new T.MeshLambertMaterial({color:0x6a6a70,transparent:true,opacity:.55,depthWrite:false});const o=new T.Mesh(G3.smokeG,m);const y=.5+Math.random()*.4;o.position.set(g3W(x+(Math.random()-.5)*.6),y,z+(Math.random()-.5)*.6);G3.scene.add(o);G3.fx.push({kind:'smoke',m:o,t:0,d:.9+Math.random()*.3,r,y})}
 function g3ring(x,z,r,col,d=.45){const T=G3.T,m=new T.MeshBasicMaterial({color:col,transparent:true,opacity:.9,depthWrite:false,blending:T.AdditiveBlending,side:T.DoubleSide});m.toneMapped=false;
   const o=new T.Mesh(G3.ringG,m);o.position.set(g3W(x),.08,z);G3.scene.add(o);G3.fx.push({kind:'ring',m:o,t:0,d,r})}
 function g3world(camX,camZ,focusZ){
@@ -1657,6 +1686,9 @@ function run3dDraw(){
       o.userData.arm.rotation.x=-1.2+Math.sin(t*(e.z-sz<2?7:2.5))*.6;
       const fl=(e.flash3||0)>0;o.traverse(m=>{if(m.isMesh&&m.material.emissive){m.material.emissive.setHex(fl?0x553333:m.userData.base||0)}})}
   }
+  for(const it of B.items){const p=itemPos(it);const o=g3obj(it,()=>{const g=new T.Group();if(it.kind==='weapon'||it.kind==='rate')g.add(g3item(it.kind,B.wt+1));else{const d=new T.Mesh(new T.CylinderGeometry(.32,.32,.08,20),G3.std(it.kind==='king'?0xffcc33:0x2f86ff));d.rotation.x=Math.PI/2;g.add(d);const cr2=new T.Mesh(new T.BoxGeometry(.08,.4,.1),G3.std(0xffffff));g.add(cr2);const cr3=new T.Mesh(new T.BoxGeometry(.4,.08,.1),G3.std(0xffffff));g.add(cr3)}g.scale.setScalar(1.3);return g});
+    o.position.set(g3W(p.x),p.h,p.z);o.rotation.y=t*8;g3inst(G3.halo,g3W(p.x),p.h,p.z,0,0,0,.55,.55,.55,0xffc840)}
+  if(B.aura>0){const r=cr()*1.3+.6,k=B.aura;g3inst(G3.halo,g3W(sx),.15,sz,0,0,0,r*(1.2-k*.2),.12,r*(1.2-k*.2)*.9,0xffc020)}
   g3partsAndShots();g3end();g3sweep();
   g3render();
   // 2D 오버레이: 숫자·이름표
