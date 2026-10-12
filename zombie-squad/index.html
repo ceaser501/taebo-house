@@ -2021,14 +2021,15 @@ function mdInit(){
     if(!man){MD.status='none';return}MD.man=man;MD.status='loading';const L=new THREE.GLTFLoader();
     for(const slot of MD_SLOTS){let list=man[slot];if(!list)continue;if(!Array.isArray(list))list=[list];
       list.forEach((ent,vi)=>{const v=typeof ent==='string'?{url:ent}:ent;
-      L.load(v.url,g=>{const sc=g.scene;const skinned=!!g.animations&&g.animations.length>0;
+      const onErr=e=>{MD.status='error';console.warn('[model] load failed',slot,v.url,e)};
+      fetch(v.url).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.arrayBuffer()}).then(buf=>L.parse(buf,v.url.replace(/[^/]*$/,''),g=>{const sc=g.scene;const skinned=!!g.animations&&g.animations.length>0;
         sc.traverse(o=>{if(o.isMesh){o.frustumCulled=false;o.castShadow=false;
           const ms=Array.isArray(o.material)?o.material:[o.material];const conv=ms.map(m=>{if(!m||m.isMeshLambertMaterial)return m;const n=new THREE.MeshLambertMaterial({map:m.map||null,color:m.color?m.color.clone():0xffffff,transparent:!!m.transparent,alphaTest:m.alphaTest||0,side:m.side});if(m.map){m.map.anisotropy=2;m.map.encoding=THREE.LinearEncoding;m.map.needsUpdate=true}return n});o.material=Array.isArray(o.material)?conv:conv[0]}});
         const box=new THREE.Box3().setFromObject(sc),size=box.getSize(new THREE.Vector3()),h=size.y||1,target=v.height||(man.height&&man.height[slot])||MD_H[slot],s=target/h;
         const root=new THREE.Group(),piv=new THREE.Group();piv.add(sc);sc.position.set(-(box.min.x+box.max.x)/2,-box.min.y,-(box.min.z+box.max.z)/2);piv.scale.setScalar(s);
         const ry=v.rotY!=null?v.rotY:(man.rotY&&man.rotY[slot]);if(ry!=null)piv.rotation.y=ry;root.add(piv);
         (MD.slots[slot]=MD.slots[slot]||[]).push({root,clips:g.animations||[],names:(g.animations||[]).map(a=>a.name),anim:(man.anim&&man.anim[slot])||{},skinned,h:target});
-        MD.status='ok';console.log('[model]',slot,vi,'loaded, clips:',(g.animations||[]).map(a=>a.name).join(', ')||'(none → 자동 동작)')},undefined,e=>{MD.status='error';console.warn('[model] load failed',slot,v.url,e)})})}
+        MD.status='ok';console.log('[model]',slot,vi,'loaded, clips:',(g.animations||[]).map(a=>a.name).join(', ')||'(none → 자동 동작)')},onErr)).catch(onErr)})}
   }).catch(()=>{MD.status='none'});
 }
 function mdHas(slot){return !!(MD.slots[slot]&&MD.slots[slot].length)}
