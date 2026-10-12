@@ -655,7 +655,7 @@ function addFloat(x,z,text,col){B.floats.push({x,z,h:1.6,text,col,life:1.1})}
 function burst(x,z,h,col,n,sp=2.5){for(let i=0;i<n&&B.parts.length<500;i++)B.parts.push({x,z,h,vx:(Math.random()-.5)*sp,vz:(Math.random()-.5)*sp,vh:Math.random()*sp,life:.5+Math.random()*.4,col});
   if(B.g3&&n>=10){g3flash(x,h+.3,z,.45+n*.02,0xff8a1a,.3);if(n>=14){g3flash(x,h+.5,z,.7+n*.025,0xffc030,.4);for(let i=0;i<3;i++)g3smoke(x,z,.35+n*.012)}if(n>=16){g3ring(x,z,1.5+n*.06,col);B.shake3=Math.min(.45,(B.shake3||0)+.12)}}}
 function runHit(e,d){
-  e.hp-=d;if(e.t==='b')e.flash3=.07;
+  e.hp-=d;e.flash3=.07;
   if(e.hp<=0&&!e.dead){
     e.dead=true;
     if(e.t==='z')burst(e.x,e.z,.6*e.sz,'#8fd94f',e.sz>1?16:6);
@@ -748,7 +748,7 @@ function runUpdate(dt,frozen){
         if(e.z-B.sqZ<.55&&e.z-B.sqZ>-.8&&Math.abs(e.x-B.sqX)<r+e.r){const k=Math.ceil(e.hp/e.hpPer)*e.str;B.lostMob=(B.lostMob||0)+Math.min(B.N,k);B.N=Math.max(0,B.N-k);e.dead=true;burst(e.x,e.z,.5,'#c0392b',Math.min(30,6+k));if(k>2)addFloat(B.sqX,B.sqZ+.5,'-'+k,'#ff8a80')}
       }
       if(e.t==='o'&&e.z-B.sqZ<.6&&e.z-B.sqZ>-.6&&Math.abs(e.x-B.sqX)<r+e.r){const k=Math.ceil(e.hp/e.hpPer);B.lostMob=(B.lostMob||0)+Math.min(B.N,k);B.N=Math.max(0,B.N-k);e.dead=true;burst(e.x,e.z,.5,'#a8743e',16,3);addFloat(B.sqX,B.sqZ+.5,'-'+k,'#ff8a80')}
-      if(e.t==='b')e.flash3=Math.max(0,(e.flash3||0)-dt);
+      e.flash3=Math.max(0,(e.flash3||0)-dt);
     if(e.t==='b'&&e.z-B.sqZ<34){
         if(e.z-B.sqZ>1.4)e.z-=e.spd*dt;
         else{e.z=B.sqZ+1.4;B.drain+=e.dps*dt;if(B.drain>=1){const k=Math.floor(B.drain);B.drain-=k;B.lostBoss=(B.lostBoss||0)+Math.min(B.N,k);B.N=Math.max(0,B.N-k);burst(B.sqX,B.sqZ+.5,.5,'#c0392b',k*2)}}
@@ -1687,7 +1687,9 @@ function run3dDraw(){
   for(const e of B.ents){
     if(e.dead&&e.t!=='b')continue;
     if(e.t==='z'){
-      if(e.sz>1){g3rig(G3.gob,g3W(e.x),0,e.z,Math.PI,1.5*.95,t*9+e.ph*4,TINTS.orc);g3rig(G3.orc,g3W(e.x),0,e.z,Math.PI,1.5*.95,0)}
+      if(e.sz>1){if(mdHas('big')){const o=g3obj(e.mk=e.mk||{},()=>mdNew('big',e.ph));o.position.set(g3W(e.x),0,e.z);o.rotation.y=Math.PI;mdPlay(o,'walk',.15,1.1);mdFlash(o,(e.flash3||0)>0)}
+        else{g3rig(G3.gob,g3W(e.x),0,e.z,Math.PI,1.5*.95,t*9+e.ph*4,TINTS.orc);g3rig(G3.orc,g3W(e.x),0,e.z,Math.PI,1.5*.95,0)}}
+      else if(mdSlot('gun')){const cnt=Math.ceil(e.hp/e.hpPer),m=Math.min(cnt,5),sl=mdSlot('gun');e.mk=e.mk||[];for(let i=0;i<m;i++){const o=g3obj(e.mk[i]=e.mk[i]||{},()=>mdNew(sl,e.ph+i*.37));o.position.set(g3W(e.x+MOB[i][0]*1.1),0,e.z+MOB[i][1]*1.1);o.rotation.y=Math.PI;mdPlay(o,'walk',.15,1.2);mdFlash(o,(e.flash3||0)>0)}}
       else{const cnt=Math.ceil(e.hp/e.hpPer),m=Math.min(cnt,14);for(let i=0;i<m;i++)g3rig(G3.gob,g3W(e.x+MOB[i][0]),Math.abs(Math.sin(t*8+i+e.ph))*.04,e.z+MOB[i][1],Math.PI,.95,t*10+i+e.ph*4,TINTS.skin)}
     }else if(e.t==='g'){
       const o=g3obj(e,()=>g3gate(e)),good=(e.op==='+'&&e.v>=0)||e.op==='x',col=G3COL[e.purple?'purple':good?'blue':'red'];
@@ -1740,8 +1742,8 @@ function hero3dDraw(){
     else g3rig(G3.knight,x,0,u.oz,0,.92,t*2+u.ox*5,TINTS.blue)}
   for(const e of B.ents){if(e.dead)continue;
     if(e.t==='e'){
-      const slotH=e.k==='boss'?'boss':e.k==='orc'?'big':null;
-      if(slotH&&mdHas(slotH)){const o=g3obj(e.mk=e.mk||{},()=>mdNew(slotH));o.position.set(g3W(e.x),0,e.z);o.rotation.y=Math.PI;mdPlay(o,e.atking?'attack':'walk');mdFlash(o,e.flash>0)}
+      const slotH=e.k==='boss'?'boss':e.k==='orc'?'big':mdSlot('gun');
+      if(slotH&&mdHas(slotH)){const o=g3obj(e.mk=e.mk||{},()=>mdNew(slotH,e.ph));o.position.set(g3W(e.x),0,e.z);o.rotation.y=Math.PI;mdPlay(o,e.atking?'attack':'walk');mdFlash(o,e.flash>0)}
       else if(e.k==='boss'){const o=g3obj(e,()=>g3ogre());o.position.set(g3W(e.x),0,e.z);o.scale.setScalar(e.sz*.95);o.rotation.y=Math.PI;o.userData.arm.rotation.x=-1.2+Math.sin(t*(e.atking?7:2.5))*.6;
         const fl=e.flash>0;o.traverse(m=>{if(m.isMesh&&m.material.emissive)m.material.emissive.setHex(fl?0x553333:m.userData.base||0)})}
       else{const orc=e.k==='orc',ph=t*(e.atking?14:9)+e.ph*4;g3rig(G3.gob,g3W(e.x),e.atking?Math.abs(Math.sin(ph))*.08:0,e.z,Math.PI,(orc?1.5:1)*.95,ph,e.flash>0?TINTS.hurt:orc?TINTS.orc:TINTS.skin);if(orc)g3rig(G3.orc,g3W(e.x),0,e.z,Math.PI,1.5*.95,0)}}
@@ -1952,7 +1954,7 @@ function def3dDraw(){
   /* 적 (가로 폭 1.1 → 종대) */
   for(const e of B.enemies){if(e.dead)continue;const p=pathAt(e.dist),yaw=Math.atan2(p.ny,-p.nx),fl=e.flash>0;
     const slot=e.k==='ogre'?'boss':e.k==='orc'?'big':'soldier';
-    if(mdHas(slot)){const o=g3obj(e.mk=e.mk||{},()=>mdNew(slot));o.position.set(e.x,0,e.y);o.rotation.y=yaw;mdPlay(o,'walk',.15,TUNE.def[e.k].spd/1.4);mdFlash(o,fl);d3inst(G3.blob,e.x,.02,e.y,0,0,0,e.k==='ogre'?.9:.35,1,e.k==='ogre'?.9:.35)}
+    if(mdHas(slot)){const o=g3obj(e.mk=e.mk||{},()=>mdNew(slot,e.ph));o.position.set(e.x,0,e.y);o.rotation.y=yaw;mdPlay(o,'walk',.15,TUNE.def[e.k].spd/1.4);mdFlash(o,fl);d3inst(G3.blob,e.x,.02,e.y,0,0,0,e.k==='ogre'?.9:.35,1,e.k==='ogre'?.9:.35)}
     else if(e.k==='ogre'){const o=g3obj(e,()=>g3ogre());o.position.set(e.x,0,e.y);o.rotation.y=yaw;o.scale.setScalar(1.35);o.userData.arm.rotation.x=-1.2+Math.sin(t*2.5)*.6;o.traverse(m=>{if(m.isMesh&&m.material.emissive)m.material.emissive.setHex(fl?0x663333:m.userData.base||0)});d3inst(G3.blob,e.x,.02,e.y,0,0,0,.9,1,.9)}
     else if(e.k==='orc'){g3rig(G3.gob,e.x,0,e.y,yaw,1.35,t*9+e.ph*4,fl?TINTS.hurt:TINTS.orc);g3rig(G3.orc,e.x,0,e.y,yaw,1.35,0)}
     else g3rig(G3.knight,e.x,Math.abs(Math.sin(t*10+e.ph))*.04,e.y,yaw,1.05,t*11+e.ph*4,fl?TINT_WHITE:TINT_RED)}
@@ -2006,39 +2008,52 @@ function d3lightReset(){if(!G3.hemi)return;G3.hemi.color.setHex(0xffffff);G3.hem
 
 /* =========================================================
    외부 3D 캐릭터(glb) 로더 — models/manifest.json 이 있으면 자리표시자 대신 사용
-   manifest 예: {"hero":"models/knight.glb","soldier":"models/goblin.glb","big":"models/orc.glb","boss":"models/ogre.glb",
-                 "height":{"soldier":1.2},"rotY":{"hero":3.1416},"anim":{"soldier":{"walk":"Walking_A"}}}
+   슬롯: hero(영웅) soldier(일반 적) big(큰 적) boss(보스) gun(돌격전 일반 적, 없으면 soldier)
+   슬롯 값은 파일 하나("models/a.glb") 또는 여러 변형(["models/a.glb",{"url":"models/b.glb","height":1.3,"rotY":3.14}])
+   뼈대·애니메이션이 없는 모델은 자동으로 걷기(흔들림)·공격(돌진) 동작을 흉내냅니다.
    ========================================================= */
 const MD={slots:{},ready:false,mixers:new Set(),status:'none'};
-const MD_H={hero:1.75,soldier:1.15,big:1.6,boss:2.8};
+const MD_H={hero:1.75,soldier:1.15,big:1.6,boss:2.8,gun:1.15};
+const MD_SLOTS=['hero','soldier','big','boss','gun'];
 function mdInit(){
   if(MD.ready||!window.THREE||!THREE.GLTFLoader)return;MD.ready=true;
   fetch('models/manifest.json').then(r=>r.ok?r.json():null).then(man=>{
     if(!man){MD.status='none';return}MD.man=man;MD.status='loading';const L=new THREE.GLTFLoader();
-    for(const slot of['hero','soldier','big','boss']){const url=man[slot];if(!url)continue;
-      L.load(url,g=>{const sc=g.scene;sc.traverse(o=>{if(o.isMesh){o.frustumCulled=false;o.castShadow=false}});
-        const box=new THREE.Box3().setFromObject(sc),size=box.getSize(new THREE.Vector3()),h=size.y||1,target=(man.height&&man.height[slot])||MD_H[slot],s=target/h;
+    for(const slot of MD_SLOTS){let list=man[slot];if(!list)continue;if(!Array.isArray(list))list=[list];
+      list.forEach((ent,vi)=>{const v=typeof ent==='string'?{url:ent}:ent;
+      L.load(v.url,g=>{const sc=g.scene;const skinned=!!g.animations&&g.animations.length>0;
+        sc.traverse(o=>{if(o.isMesh){o.frustumCulled=false;o.castShadow=false;
+          const ms=Array.isArray(o.material)?o.material:[o.material];const conv=ms.map(m=>{if(!m||m.isMeshLambertMaterial)return m;const n=new THREE.MeshLambertMaterial({map:m.map||null,color:m.color?m.color.clone():0xffffff,transparent:!!m.transparent,alphaTest:m.alphaTest||0,side:m.side});if(m.map){m.map.anisotropy=2;m.map.encoding=THREE.LinearEncoding;m.map.needsUpdate=true}return n});o.material=Array.isArray(o.material)?conv:conv[0]}});
+        const box=new THREE.Box3().setFromObject(sc),size=box.getSize(new THREE.Vector3()),h=size.y||1,target=v.height||(man.height&&man.height[slot])||MD_H[slot],s=target/h;
         const root=new THREE.Group(),piv=new THREE.Group();piv.add(sc);sc.position.set(-(box.min.x+box.max.x)/2,-box.min.y,-(box.min.z+box.max.z)/2);piv.scale.setScalar(s);
-        if(man.rotY&&man.rotY[slot]!=null)piv.rotation.y=man.rotY[slot];root.add(piv);
-        MD.slots[slot]={root,clips:g.animations||[],names:(g.animations||[]).map(a=>a.name),anim:(man.anim&&man.anim[slot])||{}};
-        MD.status='ok';console.log('[model]',slot,'loaded, clips:',MD.slots[slot].names.join(', ')||'(none)')},undefined,e=>{MD.status='error';console.warn('[model] load failed',slot,e)})}
+        const ry=v.rotY!=null?v.rotY:(man.rotY&&man.rotY[slot]);if(ry!=null)piv.rotation.y=ry;root.add(piv);
+        (MD.slots[slot]=MD.slots[slot]||[]).push({root,clips:g.animations||[],names:(g.animations||[]).map(a=>a.name),anim:(man.anim&&man.anim[slot])||{},skinned,h:target});
+        MD.status='ok';console.log('[model]',slot,vi,'loaded, clips:',(g.animations||[]).map(a=>a.name).join(', ')||'(none → 자동 동작)')},undefined,e=>{MD.status='error';console.warn('[model] load failed',slot,v.url,e)})})}
   }).catch(()=>{MD.status='none'});
 }
-function mdHas(slot){return !!MD.slots[slot]}
-function mdNew(slot){
-  const m=MD.slots[slot];if(!m)return null;
+function mdHas(slot){return !!(MD.slots[slot]&&MD.slots[slot].length)}
+function mdSlot(slot){return mdHas(slot)?slot:(slot==='gun'&&mdHas('soldier'))?'soldier':null}
+function mdNew(slot,seed){
+  const list=MD.slots[slot];if(!list||!list.length)return null;
+  const m=list[Math.floor((seed!=null?(seed%1+1)%1:Math.random())*list.length)%list.length];
   const inst=THREE.SkeletonUtils.clone(m.root);
   inst.traverse(o=>{if(o.isMesh&&o.material){o.material=Array.isArray(o.material)?o.material.map(x=>x.clone()):o.material.clone()}});
   const mixer=new THREE.AnimationMixer(inst),acts={};
   for(const c of m.clips)acts[c.name.toLowerCase()]=mixer.clipAction(c);
   const pick=(key,...keys)=>{const forced=m.anim[key];if(forced&&acts[forced.toLowerCase()])return acts[forced.toLowerCase()];for(const k of keys){const n=Object.keys(acts).find(x=>x.includes(k));if(n)return acts[n]}return null};
-  const o={inst,mixer,acts,walk:pick('walk','walk','run','move'),idle:pick('idle','idle','stand','breath'),attack:pick('attack','attack','punch','slash','swing','hit','shoot'),cur:null,speed:1};
+  const o={inst,mixer,acts,walk:pick('walk','walk','run','move'),idle:pick('idle','idle','stand','breath'),attack:pick('attack','attack','punch','slash','swing','hit','shoot'),cur:null,speed:1,
+    piv:inst.children[0],proc:!m.clips.length,mode:'idle',ph:Math.random()*6.28,h:m.h,t:0};
   if(o.attack){o.attack.setLoop(THREE.LoopRepeat)}
   inst.userData.md=o;MD.mixers.add(o);return inst;
 }
-function mdPlay(inst,name,fade=.15,speed=1){const o=inst&&inst.userData.md;if(!o)return;const a=o[name]||o.walk||o.idle;if(!a)return;a.timeScale=speed;if(o.cur===a)return;if(o.cur)o.cur.fadeOut(fade);a.reset().fadeIn(fade).play();o.cur=a}
+function mdPlay(inst,name,fade=.15,speed=1){const o=inst&&inst.userData.md;if(!o)return;o.mode=name;o.speed=speed;if(o.proc)return;const a=o[name]||o.walk||o.idle;if(!a)return;a.timeScale=speed;if(o.cur===a)return;if(o.cur)o.cur.fadeOut(fade);a.reset().fadeIn(fade).play();o.cur=a}
 function mdFlash(inst,on){const o=inst&&inst.userData.md;if(!o)return;if(o.fl===on)return;o.fl=on;inst.traverse(m=>{if(m.isMesh&&m.material&&m.material.emissive){if(m.userData.base==null)m.userData.base=m.material.emissive.getHex();m.material.emissive.setHex(on?0x7a2a2a:m.userData.base)}})}
-function mdUpdate(dt){for(const o of MD.mixers)o.mixer.update(dt)}
+/* 뼈대 없는 모델용 가짜 동작: 걷기=좌우 흔들+앞으로 기울기+통통, 공격=앞으로 들이받기, 대기=숨쉬기 */
+function mdProc(o,dt){o.t+=dt;const p=o.piv;if(!p)return;const t=o.t,ph=o.ph,h=o.h||1.2,q=Math.min(1.6,1/Math.sqrt(h/1.2));
+  if(o.mode==='attack'){const w=t*7*q+ph,s=Math.max(0,Math.sin(w));p.position.set(0,s*.06*h,s*.22*h);p.rotation.set(s*.35,0,0)}
+  else if(o.mode==='idle'){p.position.set(0,Math.sin(t*2.2+ph)*.008*h,0);p.rotation.set(0,0,Math.sin(t*1.6+ph)*.02)}
+  else{const w=t*9*o.speed*q+ph;p.position.set(0,Math.abs(Math.sin(w))*.04*h,0);p.rotation.set(.14,Math.sin(w)*.12,Math.sin(w)*.08)}}
+function mdUpdate(dt){for(const o of MD.mixers){if(o.proc)mdProc(o,dt);else o.mixer.update(dt)}}
 function mdDrop(o){if(o&&o.userData.md){MD.mixers.delete(o.userData.md)}o&&o.traverse&&o.traverse(m=>{if(m.userData.md)MD.mixers.delete(m.userData.md)})}
 
 /* ---------- 디버그/시뮬레이션 훅 ---------- */

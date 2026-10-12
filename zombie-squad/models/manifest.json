@@ -1,0 +1,21 @@
+{
+  "soldier": [
+    "models/g_20b2fede.glb",
+    "models/g_5e3f7ae8.glb",
+    "models/g_285b1414.glb",
+    "models/g_85ce8996.glb",
+    {"url":"models/g_baa3e90f.glb","height":1.0},
+    {"url":"models/g_cea6a31d.glb","height":0.95}
+  ],
+  "big": [
+    "models/g_2acef827.glb",
+    "models/g_3b5e06ac.glb",
+    "models/g_6b481bb4.glb",
+    "models/g_280e528e.glb"
+  ],
+  "gun": [
+    "models/g_4fca90d7.glb",
+    "models/g_e16bd48d.glb"
+  ],
+  "height": {"soldier": 1.15, "big": 1.65, "gun": 1.0}
+}
