@@ -1,7 +1,0 @@
-{
-  "soldier": {"md2":"models/ratamahatta.md2","skin":"models/ratamahatta.png"},
-  "gun":     {"md2":"models/ratamahatta.md2","skin":"models/ratamahatta.png","weapon":"models/w_machinegun.md2","wskin":"models/w_machinegun.png"},
-  "big":     {"md2":"models/ratamahatta.md2","skin":"models/ctf_b.png","weapon":"models/w_chaingun.md2","wskin":"models/w_chaingun.png"},
-  "boss":    {"md2":"models/ratamahatta.md2","skin":"models/ctf_r.png","weapon":"models/w_bfg.md2","wskin":"models/w_bfg.png"},
-  "height":  {"soldier":1.2,"gun":1.1,"big":1.7,"boss":2.9}
-}
