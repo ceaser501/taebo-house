@@ -169,7 +169,7 @@ const TUNE={
   hero:{par:.8,m:1.04,e0:.3,eSt:.07,heroHp:420,unitHp:120,heroAtk:3.2,unitAtk:1,bolt:22,fire:34,rain:40,g0:18,gD:3.5,gW:10,oW:1.2,oD:.4,gap:.35,barrel:150,
     gob:{hp:190,spd:2,atk:14,r:.3},orc:{hp:880,spd:1.4,atk:45,r:.45},boss:{hp:17500,spd:.85,atk:160,r:1.2}},
   run:{e0:.5,eSt:.05,wpnT:.9,shootCap:8,bossSpd:2,par:.8,gateSc:.07,t0:3.6,tSt:.28,tMax:7.7,f0:.35,fSt:.02,fMax:.7,a0:.3,aSt:.025,aMax:.75,b0:9,bSt:.5,bMax:22,drain:.08,barrelAmt:.15,barrelT:.5,kingAmt:.3,kingT:1.1},
-  def:{par:.8,m:1.04,castle:10,start:15,startD:5,heroMul:1.3,raven:3,blaze:2.2,tower:34,towerGrow:1.01,g0:8,gW:3.5,gD:1,oW:1.2,oD:.35,gap:.5,
+  def:{par:.8,m:1.04,castle:10,start:15,startD:5,heroMul:1.3,raven:3,blaze:2.2,tower:34,towerGrow:1.01,g0:7,gW:3.2,gD:.85,oW:1.1,oD:.3,gap:.55,
     gob:{hp:95,spd:2,dmg:1,coins:1,r:.26},orc:{hp:400,spd:1.4,dmg:2,coins:3,r:.36},ogre:{hp:3800,spd:.9,dmg:6,coins:12,r:.75}}
 };
 
@@ -899,10 +899,10 @@ function runDraw(){
    성 방어전 — 넓은 맵, 카메라가 영웅을 따라감
    ========================================================= */
 // 협곡을 감아 도는 부드러운 길 (영상 참고)
-const MAP=(()=>{const C=[[0.6,34.5],[1.4,31],[3.2,28.6],[6.6,27.4],[11.6,27.0],[15.3,24.2],[15.4,19.8],[11.4,17.4],[6.2,16.6],[3.1,13.6],[3.6,9.8],[7.6,8.0],[12.4,8.3],[15.0,6.0],[12.8,3.7],[9.8,3.2]];
+const MAP=(()=>{const C=[[1.0,21.5],[2.2,18.6],[5.4,16.6],[10.4,16.2],[14.6,13.8],[14.2,9.9],[10.2,8.2],[5.4,8.6],[3.6,6.0],[6.0,3.9],[9.6,3.3]];
   const cr=(p0,p1,p2,p3,t)=>{const t2=t*t,t3=t2*t;return .5*((2*p1)+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t2+(-p0+3*p1-3*p2+p3)*t3)};
   const pts=[];for(let i=0;i<C.length-1;i++){const p0=C[Math.max(0,i-1)],p1=C[i],p2=C[i+1],p3=C[Math.min(C.length-1,i+2)];for(let k=0;k<8;k++){const t=k/8;pts.push([cr(p0[0],p1[0],p2[0],p3[0],t),cr(p0[1],p1[1],p2[1],p3[1],t)])}}
-  pts.push(C[C.length-1]);return{w:18,h:32,path:pts,castle:[9.4,2.2]}})();
+  pts.push(C[C.length-1]);return{w:18,h:20,path:pts,castle:[9.4,2.2]}})();
 (()=>{const P=MAP.path;MAP.seg=[];let L=0;for(let i=0;i<P.length-1;i++){const d=Math.hypot(P[i+1][0]-P[i][0],P[i+1][1]-P[i][1]);MAP.seg.push({a:P[i],b:P[i+1],L0:L,d});L+=d}MAP.len=L})();
 function pathAt(dist){
   for(const s of MAP.seg)if(dist<=s.L0+s.d){const t=(dist-s.L0)/s.d,dx=(s.b[0]-s.a[0])/s.d,dy=(s.b[1]-s.a[1])/s.d;return{x:s.a[0]+(s.b[0]-s.a[0])*t,y:s.a[1]+(s.b[1]-s.a[1])*t,nx:-dy,ny:dx}}
@@ -911,9 +911,9 @@ function pathAt(dist){
 function distPath(x,y){let m=1e9;for(const s of MAP.seg){const vx=s.b[0]-s.a[0],vy=s.b[1]-s.a[1],t=clamp(((x-s.a[0])*vx+(y-s.a[1])*vy)/(vx*vx+vy*vy),0,1);m=Math.min(m,Math.hypot(x-s.a[0]-vx*t,y-s.a[1]-vy*t))}return m}
 MAP.pads=(()=>{
   const pads=[];let side=1;
-  for(let d=5;d<MAP.len-3;d+=3.6){
+  for(let d=3;d<MAP.len-2;d+=3.0){
     for(const sg of[side,-side]){const p=pathAt(d),x=p.x+p.nx*2*sg,y=p.y+p.ny*2*sg;
-      if(x<1.2||x>MAP.w-1.2||y<4||y>MAP.h-1.5)continue;if(distPath(x,y)<1.75)continue;
+      if(x<1.2||x>MAP.w-1.2||y<3.6||y>MAP.h-1.0)continue;if(distPath(x,y)<1.75)continue;
       if(pads.some(q=>Math.hypot(q.x-x,q.y-y)<2.6))continue;if(Math.hypot(x-MAP.castle[0],y-MAP.castle[1])<3.4)continue;
       pads.push({x,y,d});break}
     side=-side;
@@ -992,7 +992,7 @@ function defWaves(d){
     const T=TUNE.def,ramp=.55+.45*w/(nW-1),gN=Math.round((T.g0+d*T.gD)*ramp+w*T.gW),oN=w>=1?Math.floor(w*T.oW+d*T.oD*ramp):0;
     for(let i=0;i<gN;i++)q.push('gob');
     for(let i=0;i<oN;i++)q.splice(Math.floor(R()*(q.length+1)),0,'orc');
-    if(last){q.push('ogre');if(d>=6)q.push('ogre')}
+    if(last){q.push('ogre');if(d>=10)q.push('ogre')}
     const gap=Math.max(.3,T.gap-d*.01);
     waves.push(q.map((k,i)=>({k,t:i*gap})));
   }
@@ -1003,9 +1003,9 @@ function startDef(){
   accrue();save();
   const d=S.dstage,hid=S.hero,T=TUNE.def;
   const par=Math.pow(d,T.par);
-  B={mode:'def',st:d,M:ST.dmg(par)*ST.rate(par)/10*Math.pow(T.m,d-1)*Math.min(1,.65+.05*(d-1)),coins:Math.min(T.start+T.startD*(d-1),70),castle:T.castle,castleMax:T.castle,hero:{x:MAP.castle[0],y:MAP.castle[1]+3.6,face:1},
+  B={mode:'def',st:d,M:ST.dmg(par)*ST.rate(par)/10*Math.pow(T.m,d-1)*Math.min(1,.65+.05*(d-1)),coins:Math.min(T.start+T.startD*(d-1),70),castle:T.castle,castleMax:T.castle,hero:{x:MAP.castle[0]-1.5,y:MAP.castle[1]+4.2,face:1},
      enemies:[],drops:[],towers:MAP.pads.map(p=>({x:p.x,y:p.y,cost:p.cost,lv:0,cd:0,ang:-Math.PI/2,hold:0,done:false})),
-     shots:[],parts:[],floats:[],fx3:[],nightForce:null,waves:defWaves(d),wave:-1,queue:[],qt:0,waveT:3,shake:0,t:0,fireCd:0,heroCd:1.5,
+     shots:[],parts:[],floats:[],fx3:[],nightForce:null,waves:defWaves(d),wave:-1,queue:[],qt:0,waveT:1.5,shake:0,t:0,fireCd:0,heroCd:1.5,
      hid,hlv:S.heroes[hid],joy:null,layout:defLayout,update:defUpdate,draw:defDraw,
      progress:()=>Math.max(0,B.wave)/B.waves.length,
      onDown:e=>{const r=cv.getBoundingClientRect();B.joy={ox:e.clientX-r.left,oy:e.clientY-r.top,dx:0,dy:0}},
@@ -1926,7 +1926,7 @@ function def3dDraw(){
   const now=performance.now(),dt=Math.min(.05,(now-(D3.last||now))/1000);D3.last=now;
   const H=B.hero,t=B.t;D3.coinIM.count=0;D3.crownIM.count=0;D3.puffIM.count=0;
   /* 카메라 */
-  const tx=clamp(H.x,4.2,MAP.w-4.2),tz=clamp(H.y,5.6,MAP.h-3.2);
+  const tx=clamp(H.x,4.2,MAP.w-4.2),tz=clamp(H.y,5.6,MAP.h-2.0);
   if(D3.cx==null){D3.cx=tx;D3.cz=tz}else{const kk=Math.min(1,dt*5);D3.cx+=(tx-D3.cx)*kk;D3.cz+=(tz-D3.cz)*kk}
   const sh=B.shake||0;G3.cam.position.set(D3.cx+(Math.random()-.5)*sh*.5,15.5,D3.cz+8.6+(Math.random()-.5)*sh*.5);G3.cam.lookAt(D3.cx,0,D3.cz-1.0);
   G3.dir.position.set(D3.cx-6,16,D3.cz+4);G3.dir.target.position.set(D3.cx,0,D3.cz);
